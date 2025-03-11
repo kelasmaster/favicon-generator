@@ -1,0 +1,28 @@
+<div class="container">
+  <!-- Upload Section -->
+  <div class="upload-section">
+    <div class="drop-area" id="dropArea">
+      <input type="file" id="fileInput" accept="image/*" hidden>
+      <p>Drag & Drop Image<br>or<br><button class="btn">Browse Files</button></p>
+    </div>
+    
+    <div class="text-option">
+      <input type="text" id="textInput" placeholder="Enter text (e.g., A)" maxlength="2">
+      <input type="color" id="textColor" value="#ffffff">
+      <input type="color" id="bgColor" value="#000000">
+    </div>
+  </div>
+
+  <!-- Preview Section -->
+  <div class="preview-section">
+    <canvas id="previewCanvas"></canvas>
+    <div class="size-options">
+      <label><input type="checkbox" checked> 16x16</label>
+      <label><input type="checkbox" checked> 32x32</label>
+      <!-- Add other sizes -->
+    </div>
+  </div>
+
+  <!-- Download Section -->
+  <button class="btn download-btn">Generate Favicon</button>
+</div>
