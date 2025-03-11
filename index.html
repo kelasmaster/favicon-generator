@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Favicon Generator</title>
     <style>
-        /* Previous CSS styles */
         body {
             font-family: Arial, sans-serif;
             padding: 20px;
@@ -73,6 +72,11 @@
         .btn:hover {
             background: #0056b3;
         }
+
+        .error {
+            color: red;
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -107,11 +111,15 @@
     </div>
     
     <button class="btn download-btn" onclick="generateFavicons()">Generate Favicons</button>
+    <div class="error" id="errorMessage"></div>
 
     <!-- Required Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-to-ico@1.1.0/lib/index.min.js"></script>
+    
+    <!-- Canvas to Blob Polyfill -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/canvas-toBlob/1.0.0/canvas-toBlob.min.js"></script>
 
     <script>
         const canvas = document.getElementById('previewCanvas');
@@ -120,28 +128,34 @@
         let currentText = '';
         let textColor = '#ffffff';
         let bgColor = '#000000';
+        const errorMessage = document.getElementById('errorMessage');
 
         // Initialize preview
         function updatePreview() {
+            errorMessage.textContent = '';
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            if (currentImage) {
-                ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
-            } else if (currentText) {
-                ctx.fillStyle = bgColor;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.font = `${canvas.width * 0.7}px Arial`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = textColor;
-                ctx.fillText(currentText, canvas.width/2, canvas.height/2);
+            try {
+                if (currentImage) {
+                    ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
+                } else if (currentText) {
+                    ctx.fillStyle = bgColor;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.font = `${canvas.width * 0.7}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = textColor;
+                    ctx.fillText(currentText, canvas.width/2, canvas.height/2);
+                }
+            } catch (e) {
+                errorMessage.textContent = 'Error generating preview: ' + e.message;
             }
         }
 
         // Image upload handling
         document.getElementById('fileInput').addEventListener('change', (e) => {
             const file = e.target.files[0];
-            if (file) {
+            if (file && file.type.startsWith('image/')) {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const img = new Image();
@@ -150,9 +164,14 @@
                         currentText = '';
                         updatePreview();
                     };
+                    img.onerror = () => {
+                        errorMessage.textContent = 'Invalid image file';
+                    };
                     img.src = e.target.result;
                 };
                 reader.readAsDataURL(file);
+            } else {
+                errorMessage.textContent = 'Please select a valid image file';
             }
         });
 
@@ -174,6 +193,8 @@
             if (file && file.type.startsWith('image/')) {
                 document.getElementById('fileInput').files = e.dataTransfer.files;
                 document.getElementById('fileInput').dispatchEvent(new Event('change'));
+            } else {
+                errorMessage.textContent = 'Please drop a valid image file';
             }
         });
 
@@ -196,75 +217,95 @@
 
         // Generate favicons
         async function generateFavicons() {
-            const zip = new JSZip();
-            const sizes = Array.from(document.querySelectorAll('.size-options input:checked'))
-                .map(el => parseInt(el.value));
+            errorMessage.textContent = '';
+            const selectedSizes = Array.from(document.querySelectorAll('.size-options input:checked'));
             
-            // Create PNGs
-            const pngPromises = sizes.map(async size => {
-                const c = document.createElement('canvas');
-                c.width = size;
-                c.height = size;
-                const ctx = c.getContext('2d');
-                
-                if (currentImage) {
-                    ctx.drawImage(currentImage, 0, 0, size, size);
-                } else {
-                    ctx.fillStyle = bgColor;
-                    ctx.fillRect(0, 0, size, size);
-                    ctx.font = `${size * 0.7}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillStyle = textColor;
-                    ctx.fillText(currentText, size/2, size/2);
-                }
-                
-                return {
-                    name: `favicon-${size}x${size}.png`,
-                    blob: await new Promise(resolve => c.toBlob(resolve))
-                };
-            });
+            if (selectedSizes.length === 0) {
+                errorMessage.textContent = 'Please select at least one size';
+                return;
+            }
 
-            // Create ICO file
-            const icoSizes = [16, 32, 48].filter(size => sizes.includes(size));
-            if (icoSizes.length > 0) {
-                const icoCanvases = icoSizes.map(size => {
+            try {
+                const zip = new JSZip();
+                const sizes = selectedSizes.map(el => parseInt(el.value));
+                
+                // Create PNGs
+                const pngPromises = sizes.map(async size => {
                     const c = document.createElement('canvas');
                     c.width = size;
                     c.height = size;
                     const ctx = c.getContext('2d');
-                    if (currentImage) {
-                        ctx.drawImage(currentImage, 0, 0, size, size);
-                    } else {
-                        ctx.fillStyle = bgColor;
-                        ctx.fillRect(0, 0, size, size);
-                        ctx.font = `${size * 0.7}px Arial`;
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillStyle = textColor;
-                        ctx.fillText(currentText, size/2, size/2);
+                    
+                    try {
+                        if (currentImage) {
+                            ctx.drawImage(currentImage, 0, 0, size, size);
+                        } else {
+                            ctx.fillStyle = bgColor;
+                            ctx.fillRect(0, 0, size, size);
+                            ctx.font = `${size * 0.7}px Arial`;
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillStyle = textColor;
+                            ctx.fillText(currentText, size/2, size/2);
+                        }
+                    } catch (e) {
+                        errorMessage.textContent = `Error creating ${size}x${size} icon: ${e.message}`;
+                        return null;
                     }
-                    return c;
+                    
+                    return {
+                        name: `favicon-${size}x${size}.png`,
+                        blob: await new Promise(resolve => c.toBlob(resolve, 'image/png'))
+                    };
                 });
-                
-                const icoBlob = await canvasToIco(icoCanvases);
-                zip.file('favicon.ico', icoBlob);
+
+                // Create ICO file
+                const icoSizes = [16, 32, 48].filter(size => sizes.includes(size));
+                if (icoSizes.length > 0) {
+                    try {
+                        const icoCanvases = icoSizes.map(size => {
+                            const c = document.createElement('canvas');
+                            c.width = size;
+                            c.height = size;
+                            const ctx = c.getContext('2d');
+                            if (currentImage) {
+                                ctx.drawImage(currentImage, 0, 0, size, size);
+                            } else {
+                                ctx.fillStyle = bgColor;
+                                ctx.fillRect(0, 0, size, size);
+                                ctx.font = `${size * 0.7}px Arial`;
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'middle';
+                                ctx.fillStyle = textColor;
+                                ctx.fillText(currentText, size/2, size/2);
+                            }
+                            return c;
+                        });
+                        
+                        const icoBlob = await canvasToIco(icoCanvases);
+                        zip.file('favicon.ico', icoBlob);
+                    } catch (e) {
+                        errorMessage.textContent = 'Error creating ICO file: ' + e.message;
+                    }
+                }
+
+                // Add all PNGs to zip
+                const pngs = await Promise.all(pngPromises);
+                pngs.filter(png => png).forEach(png => zip.file(png.name, png.blob));
+
+                // Generate HTML snippet
+                const htmlContent = `
+                    <link rel="icon" href="/favicon.ico" sizes="any">
+                    ${sizes.map(size => `<link rel="icon" href="/favicon-${size}x${size}.png" sizes="${size}x${size}">`).join('\n')}
+                `;
+                zip.file('favicon-snippet.html', htmlContent);
+
+                // Create and save ZIP
+                const content = await zip.generateAsync({type: 'blob'});
+                saveAs(content, 'favicons.zip');
+            } catch (e) {
+                errorMessage.textContent = 'Generation failed: ' + e.message;
             }
-
-            // Add all PNGs to zip
-            const pngs = await Promise.all(pngPromises);
-            pngs.forEach(png => zip.file(png.name, png.blob));
-
-            // Generate HTML snippet
-            const htmlContent = `
-                <link rel="icon" href="/favicon.ico" sizes="any">
-                ${sizes.map(size => `<link rel="icon" href="/favicon-${size}x${size}.png" sizes="${size}x${size}">`).join('\\n')}
-            `;
-            zip.file('favicon-snippet.html', htmlContent);
-
-            // Create and save ZIP
-            zip.generateAsync({type: 'blob'})
-                .then(content => saveAs(content, 'favicons.zip'));
         }
     </script>
 </body>
