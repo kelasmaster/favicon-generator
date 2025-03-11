@@ -1,30 +1,271 @@
-<link href="/style.css" rel="stylesheet">
-<div class="container">
-  <!-- Upload Section -->
-  <div class="upload-section">
-    <div class="drop-area" id="dropArea">
-      <input type="file" id="fileInput" accept="image/*" hidden>
-      <p>Drag & Drop Image<br>or<br><button class="btn">Browse Files</button></p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Favicon Generator</title>
+    <style>
+        /* Previous CSS styles */
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .drop-area {
+            border: 2px dashed #666;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+
+        .text-option {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .preview-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        canvas {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            margin: 20px 0;
+        }
+
+        .size-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            transition: 0.3s;
+        }
+
+        .btn:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Favicon Generator</h1>
+    <div class="container">
+        <!-- Upload Section -->
+        <div class="upload-section">
+            <div class="drop-area" id="dropArea">
+                <input type="file" id="fileInput" accept="image/*" hidden>
+                <p>Drag & Drop Image<br>or<br><button class="btn" onclick="document.getElementById('fileInput').click()">Browse Files</button></p>
+            </div>
+            
+            <div class="text-option">
+                <input type="text" id="textInput" placeholder="Text (1-2 chars)" maxlength="2">
+                <input type="color" id="textColor" value="#ffffff">
+                <input type="color" id="bgColor" value="#000000">
+            </div>
+        </div>
+
+        <!-- Preview Section -->
+        <div class="preview-section">
+            <canvas id="previewCanvas" width="128" height="128"></canvas>
+            <div class="size-options">
+                <label><input type="checkbox" value="16" checked>16x16</label>
+                <label><input type="checkbox" value="32" checked>32x32</label>
+                <label><input type="checkbox" value="48" checked>48x48</label>
+                <label><input type="checkbox" value="64" checked>64x64</label>
+                <label><input type="checkbox" value="128" checked>128x128</label>
+                <label><input type="checkbox" value="192" checked>192x192</label>
+            </div>
+        </div>
     </div>
     
-    <div class="text-option">
-      <input type="text" id="textInput" placeholder="Enter text (e.g., A)" maxlength="2">
-      <input type="color" id="textColor" value="#ffffff">
-      <input type="color" id="bgColor" value="#000000">
-    </div>
-  </div>
+    <button class="btn download-btn" onclick="generateFavicons()">Generate Favicons</button>
 
-  <!-- Preview Section -->
-  <div class="preview-section">
-    <canvas id="previewCanvas"></canvas>
-    <div class="size-options">
-      <label><input type="checkbox" checked> 16x16</label>
-      <label><input type="checkbox" checked> 32x32</label>
-      <!-- Add other sizes -->
-    </div>
-  </div>
+    <!-- Required Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-to-ico@1.1.0/lib/index.min.js"></script>
 
-  <!-- Download Section -->
-  <button class="btn download-btn">Generate Favicon</button>
-</div>
- <script src="/script.js"></script>
+    <script>
+        const canvas = document.getElementById('previewCanvas');
+        const ctx = canvas.getContext('2d');
+        let currentImage = null;
+        let currentText = '';
+        let textColor = '#ffffff';
+        let bgColor = '#000000';
+
+        // Initialize preview
+        function updatePreview() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (currentImage) {
+                ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
+            } else if (currentText) {
+                ctx.fillStyle = bgColor;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.font = `${canvas.width * 0.7}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = textColor;
+                ctx.fillText(currentText, canvas.width/2, canvas.height/2);
+            }
+        }
+
+        // Image upload handling
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        currentImage = img;
+                        currentText = '';
+                        updatePreview();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Drag and drop
+        const dropArea = document.getElementById('dropArea');
+        dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropArea.style.borderColor = '#007bff';
+        });
+
+        dropArea.addEventListener('dragleave', () => {
+            dropArea.style.borderColor = '#666';
+        });
+
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.style.borderColor = '#666';
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                document.getElementById('fileInput').files = e.dataTransfer.files;
+                document.getElementById('fileInput').dispatchEvent(new Event('change'));
+            }
+        });
+
+        // Text input handling
+        document.getElementById('textInput').addEventListener('input', (e) => {
+            currentText = e.target.value.trim().substring(0, 2);
+            currentImage = null;
+            updatePreview();
+        });
+
+        document.getElementById('textColor').addEventListener('input', (e) => {
+            textColor = e.target.value;
+            updatePreview();
+        });
+
+        document.getElementById('bgColor').addEventListener('input', (e) => {
+            bgColor = e.target.value;
+            updatePreview();
+        });
+
+        // Generate favicons
+        async function generateFavicons() {
+            const zip = new JSZip();
+            const sizes = Array.from(document.querySelectorAll('.size-options input:checked'))
+                .map(el => parseInt(el.value));
+            
+            // Create PNGs
+            const pngPromises = sizes.map(async size => {
+                const c = document.createElement('canvas');
+                c.width = size;
+                c.height = size;
+                const ctx = c.getContext('2d');
+                
+                if (currentImage) {
+                    ctx.drawImage(currentImage, 0, 0, size, size);
+                } else {
+                    ctx.fillStyle = bgColor;
+                    ctx.fillRect(0, 0, size, size);
+                    ctx.font = `${size * 0.7}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = textColor;
+                    ctx.fillText(currentText, size/2, size/2);
+                }
+                
+                return {
+                    name: `favicon-${size}x${size}.png`,
+                    blob: await new Promise(resolve => c.toBlob(resolve))
+                };
+            });
+
+            // Create ICO file
+            const icoSizes = [16, 32, 48].filter(size => sizes.includes(size));
+            if (icoSizes.length > 0) {
+                const icoCanvases = icoSizes.map(size => {
+                    const c = document.createElement('canvas');
+                    c.width = size;
+                    c.height = size;
+                    const ctx = c.getContext('2d');
+                    if (currentImage) {
+                        ctx.drawImage(currentImage, 0, 0, size, size);
+                    } else {
+                        ctx.fillStyle = bgColor;
+                        ctx.fillRect(0, 0, size, size);
+                        ctx.font = `${size * 0.7}px Arial`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillStyle = textColor;
+                        ctx.fillText(currentText, size/2, size/2);
+                    }
+                    return c;
+                });
+                
+                const icoBlob = await canvasToIco(icoCanvases);
+                zip.file('favicon.ico', icoBlob);
+            }
+
+            // Add all PNGs to zip
+            const pngs = await Promise.all(pngPromises);
+            pngs.forEach(png => zip.file(png.name, png.blob));
+
+            // Generate HTML snippet
+            const htmlContent = `
+                <link rel="icon" href="/favicon.ico" sizes="any">
+                ${sizes.map(size => `<link rel="icon" href="/favicon-${size}x${size}.png" sizes="${size}x${size}">`).join('\\n')}
+            `;
+            zip.file('favicon-snippet.html', htmlContent);
+
+            // Create and save ZIP
+            zip.generateAsync({type: 'blob'})
+                .then(content => saveAs(content, 'favicons.zip'));
+        }
+    </script>
+</body>
+</html>
